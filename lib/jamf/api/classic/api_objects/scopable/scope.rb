@@ -161,7 +161,11 @@ module Jamf
         user_group: nil,
         user_groups: nil,
         ldap_user_group: nil,
-        ldap_user_groups: nil
+        ldap_user_groups: nil,
+        jss_user: nil,
+        jss_users: nil,
+        jss_user_group: nil,
+        jss_user_groups: nil,
       }.freeze
 
       # These keys always mean :jamf_ldap_users
@@ -191,7 +195,7 @@ module Jamf
 
       # These can be part of the base inclusion list of the scope,
       # along with the appropriate target and target group keys
-      INCLUSIONS = %i[buildings departments].freeze
+      INCLUSIONS = %i[buildings departments jss_user_groups jss_users].freeze
 
       # These can limit the inclusion list
       # These are the keys that come from the API
@@ -312,7 +316,7 @@ module Jamf
         @group_class = SCOPING_CLASSES[@group_key]
 
         @target_keys = [@target_key, @group_key] + INCLUSIONS
-        @exclusion_keys = [@target_key, @group_key] + EXCLUSIONS
+        @exclusion_keys = [@target_key, @group_key] + EXCLUSIONS - %i[jss_user_groups jss_users].freeze
 
         @all_key = "all_#{target_key}".to_sym
         @all_targets = raw_scope[@all_key]
@@ -435,7 +439,6 @@ module Jamf
           set_all_targets
           return
         end
-
         key = pluralize_key(key)
         raise Jamf::InvalidDataError, "List must be an Array of #{key} identifiers, it may be empty." unless list.is_a? Array
 
@@ -726,7 +729,22 @@ module Jamf
           list.compact!
           list.delete 0
           list_as_hashes = list.map { |i| { id: i } }
-          scope << SCOPING_CLASSES[klass].xml_list(list_as_hashes, :id)
+          if klass == :jss_user_groups
+            user_groups_xml = scope.add_element 'jss_user_groups'
+            @targets[:jss_user_groups].each do |group|
+              user_group_xml = user_groups_xml.add_element 'user_group'
+              user_group_xml.add_element('id').text = group
+            end
+          elsif klass == :jss_users
+            user_groups_xml = scope.add_element 'jss_users'
+            @targets[:jss_users].each do |group|
+              user_group_xml = user_groups_xml.add_element 'user'
+              user_group_xml.add_element('id').text = group
+            end
+          else
+            p klass
+            scope << SCOPING_CLASSES[klass].xml_list(list_as_hashes, :id)
+          end
         end
 
         limitations = scope.add_element('limitations')
